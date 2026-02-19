@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Better swim links</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 14px; line-height: 1.35; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    h2 { font-size: 16px; margin: 18px 0 8px; }
+    .small { opacity: 0.75; font-size: 12px; }
+    .loginRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 10px 0 14px; }
+    input[type="text"] { flex: 1; min-width: 220px; padding: 8px 10px; font-size: 14px; }
+    button { padding: 8px 10px; font-size: 14px; }
+    .pool { margin: 12px 0 18px; padding: 10px 10px 2px; border: 1px solid #ddd; border-radius: 10px; }
+    .poolHeader { display:flex; align-items:baseline; justify-content:space-between; gap: 10px; flex-wrap:wrap; }
+    .poolHeader a { font-size: 13px; }
+    ul { padding-left: 18px; margin: 8px 0 10px; }
+    li { margin: 10px 0; }
+    .activityName { font-weight: 600; margin-right: 8px; }
+    .linkset a { margin-right: 10px; }
+    .chip { display:inline-block; padding:2px 8px; border:1px solid #ccc; border-radius:999px; margin-left:6px; font-size:12px; opacity:0.9;}
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; background: #111; color:#fff; padding: 8px 10px; border-radius: 10px; font-size: 13px; opacity:0; pointer-events:none; transition: opacity 160ms ease; }
+    .toast.show { opacity: 0.92; }
+  </style>
+</head>
+<body>
+  <h1>Pool booking shortcuts</h1>
+  <div class="small">
+    Saturday: <span id="satLabel"></span> • Sunday: <span id="sunLabel"></span>
+  </div>
+
+  <div class="loginRow">
+    <div><strong>Login:</strong></div>
+    <input id="loginText" type="text" autocomplete="off" />
+    <button id="copyBtn" type="button">Copy</button>
+  </div>
+
+  <div id="content"></div>
+  <div id="toast" class="toast">Copied</div>
+
+  <script>
+    // =======================
+    // EDIT THESE SETTINGS
+    // =======================
+
+    // Put whatever you mean by "login: XXXX" here (email/username/member # etc.)
+    const LOGIN_TEXT = "XXXX";
+
+    // Pools -> activities.
+    // Each activity uses a booking-by-time URL template containing "{date}".
+    //
+    // Example template you gave:
+    // https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/2026-02-20/by-time
+    // becomes:
+    // https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time
+    const POOLS = [
+      {
+        name: "Pool 1",
+        timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/hough-end/timetable/pool",
+        activities: [
+          {
+            name: "Activity1",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
+          },
+          {
+            name: "Activity2",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
+          }
+        ]
+      },
+      {
+        name: "Pool 2",
+        timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/hough-end/timetable/pool",
+        activities: [
+          {
+            name: "Activity1",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
+          }
+        ]
+      }
+    ];
+
+    // =======================
+    // DATE HELPERS
+    // =======================
+    function pad2(n){ return String(n).padStart(2, "0"); }
+    function ymd(d){
+      return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+    }
+    function friendly(d){
+      return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "short", day: "numeric" });
+    }
+    function upcomingDay(targetDow){
+      // 6 = Saturday, 0 = Sunday
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight local
+      const dow = d.getDay();
+      let delta = (targetDow - dow + 7) % 7;
+      // If you want "upcoming Saturday" to mean NEXT week when today is Saturday, uncomment:
+      // if (delta === 0) delta = 7;
+      d.setDate(d.getDate() + delta);
+      return d;
+    }
+
+    const sat = upcomingDay(6);
+    const sun = upcomingDay(0);
+    const satStr = ymd(sat);
+    const sunStr = ymd(sun);
+
+    document.getElementById("satLabel").textContent = friendly(sat) + " (" + satStr + ")";
+    document.getElementById("sunLabel").textContent = friendly(sun) + " (" + sunStr + ")";
+
+    // =======================
+    // COPY BUTTON
+    // =======================
+    const loginInput = document.getElementById("loginText");
+    loginInput.value = LOGIN_TEXT;
+
+    function showToast(msg){
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 900);
+    }
+
+    document.getElementById("copyBtn").addEventListener("click", async () => {
+      const val = loginInput.value || "";
+      try {
+        await navigator.clipboard.writeText(val);
+        showToast("Copied");
+      } catch (e) {
+        // Fallback for browsers that block clipboard API without HTTPS or permissions
+        loginInput.focus();
+        loginInput.select();
+        const ok = document.execCommand("copy");
+        showToast(ok ? "Copied" : "Copy failed (tap & hold → Copy)");
+      }
+    });
+
+    // =======================
+    // RENDER
+    // =======================
+    function safeUrlFromTemplate(tpl, dateStr){
+      return (tpl || "").replace("{date}", dateStr);
+    }
+
+    function render(){
+      const root = document.getElementById("content");
+      root.innerHTML = "";
+
+      POOLS.forEach(pool => {
+        const box = document.createElement("div");
+        box.className = "pool";
+
+        const header = document.createElement("div");
+        header.className = "poolHeader";
+
+        const title = document.createElement("h2");
+        title.textContent = pool.name;
+
+        const tt = document.createElement("a");
+        tt.href = pool.timetableUrl || "#";
+        tt.textContent = "timetable";
+        tt.rel = "noreferrer";
+
+        header.appendChild(title);
+        header.appendChild(tt);
+        box.appendChild(header);
+
+        const ul = document.createElement("ul");
+
+        (pool.activities || []).forEach(act => {
+          const li = document.createElement("li");
+
+          const name = document.createElement("span");
+          name.className = "activityName";
+          name.textContent = act.name + ":";
+
+          const linkset = document.createElement("span");
+          linkset.className = "linkset";
+
+          const aSat = document.createElement("a");
+          aSat.href = safeUrlFromTemplate(act.bookingUrlTemplate, satStr);
+          aSat.textContent = "Saturday";
+          aSat.rel = "noreferrer";
+
+          const aSun = document.createElement("a");
+          aSun.href = safeUrlFromTemplate(act.bookingUrlTemplate, sunStr);
+          aSun.textContent = "Sunday";
+          aSun.rel = "noreferrer";
+
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = satStr + " / " + sunStr;
+
+          linkset.appendChild(aSat);
+          linkset.appendChild(aSun);
+
+          li.appendChild(name);
+          li.appendChild(linkset);
+          li.appendChild(chip);
+
+          ul.appendChild(li);
+        });
+
+        box.appendChild(ul);
+        root.appendChild(box);
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>
