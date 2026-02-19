@@ -9,9 +9,6 @@
     h1 { font-size: 18px; margin: 0 0 10px; }
     h2 { font-size: 16px; margin: 18px 0 8px; }
     .small { opacity: 0.75; font-size: 12px; }
-    .loginRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 10px 0 14px; }
-    input[type="text"] { flex: 1; min-width: 220px; padding: 8px 10px; font-size: 14px; }
-    button { padding: 8px 10px; font-size: 14px; }
     .pool { margin: 12px 0 18px; padding: 10px 10px 2px; border: 1px solid #ddd; border-radius: 10px; }
     .poolHeader { display:flex; align-items:baseline; justify-content:space-between; gap: 10px; flex-wrap:wrap; }
     .poolHeader a { font-size: 13px; }
@@ -20,32 +17,24 @@
     .activityName { font-weight: 600; margin-right: 8px; }
     .linkset a { margin-right: 10px; }
     .chip { display:inline-block; padding:2px 8px; border:1px solid #ccc; border-radius:999px; margin-left:6px; font-size:12px; opacity:0.9;}
-    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; background: #111; color:#fff; padding: 8px 10px; border-radius: 10px; font-size: 13px; opacity:0; pointer-events:none; transition: opacity 160ms ease; }
-    .toast.show { opacity: 0.92; }
   </style>
 </head>
 <body>
   <h1>Pool booking shortcuts</h1>
   <div class="small">
-    Saturday: <span id="satLabel"></span> • Sunday: <span id="sunLabel"></span>
-  </div>
+	  Today: <span id="todayLabel"></span> •
+	  Tomorrow: <span id="tomorrowLabel"></span> •
+	  Saturday: <span id="satLabel"></span> •
+	  Sunday: <span id="sunLabel"></span>
+   </div>
 
-  <div class="loginRow">
-    <div><strong>Login:</strong></div>
-    <input id="loginText" type="text" autocomplete="off" />
-    <button id="copyBtn" type="button">Copy</button>
-  </div>
 
   <div id="content"></div>
-  <div id="toast" class="toast">Copied</div>
 
   <script>
     // =======================
     // EDIT THESE SETTINGS
     // =======================
-
-    // Put whatever you mean by "login: XXXX" here (email/username/member # etc.)
-    const LOGIN_TEXT = "XXXX";
 
     // Pools -> activities.
     // Each activity uses a booking-by-time URL template containing "{date}".
@@ -56,26 +45,44 @@
     // https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time
     const POOLS = [
       {
-        name: "Pool 1",
+        name: "Hough End",
         timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/hough-end/timetable/pool",
         activities: [
           {
-            name: "Activity1",
+            name: "Small Pool",
             bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
           },
           {
-            name: "Activity2",
-            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
+            name: "Main Pool",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/main-pool/{date}/by-time"
           }
         ]
       },
-      {
-        name: "Pool 2",
-        timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/hough-end/timetable/pool",
+	  {
+        name: "Aquatics Centre",
+        timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/manchester-aquatics-centre/timetable/pool",
         activities: [
           {
-            name: "Activity1",
-            bookingUrlTemplate: "https://bookings.better.org.uk/location/hough-end-leisure-centre/small-pool/{date}/by-time"
+            name: "23m Pool",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/manchester-aquatics-centre/23m-pool/{date}/by-time"
+          },
+          {
+            name: "Full Pool",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/manchester-aquatics-centre/main-pool/{date}/by-time"
+          }
+        ]
+      },
+	  {
+        name: "Moss Side",
+        timetableUrl: "https://www.better.org.uk/leisure-centre/manchester/moss-side/timetable/pool",
+        activities: [
+          {
+            name: "Small Pool",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/moss-side-leisure-centre/small-pool/{date}/by-time"
+          },
+          {
+            name: "Main Pool",
+            bookingUrlTemplate: "https://bookings.better.org.uk/location/moss-side-leisure-centre/main-pool/{date}/by-time"
           }
         ]
       }
@@ -103,40 +110,24 @@
       return d;
     }
 
-    const sat = upcomingDay(6);
-    const sun = upcomingDay(0);
-    const satStr = ymd(sat);
-    const sunStr = ymd(sun);
+	const today = new Date();
+	const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()); // midnight local
+	const tomorrow0 = new Date(today0);
+	tomorrow0.setDate(tomorrow0.getDate() + 1);
 
-    document.getElementById("satLabel").textContent = friendly(sat) + " (" + satStr + ")";
-    document.getElementById("sunLabel").textContent = friendly(sun) + " (" + sunStr + ")";
+	const sat = upcomingDay(6);
+	const sun = upcomingDay(0);
 
-    // =======================
-    // COPY BUTTON
-    // =======================
-    const loginInput = document.getElementById("loginText");
-    loginInput.value = LOGIN_TEXT;
+	const todayStr = ymd(today0);
+	const tomorrowStr = ymd(tomorrow0);
+	const satStr = ymd(sat);
+	const sunStr = ymd(sun);
 
-    function showToast(msg){
-      const t = document.getElementById("toast");
-      t.textContent = msg;
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 900);
-    }
 
-    document.getElementById("copyBtn").addEventListener("click", async () => {
-      const val = loginInput.value || "";
-      try {
-        await navigator.clipboard.writeText(val);
-        showToast("Copied");
-      } catch (e) {
-        // Fallback for browsers that block clipboard API without HTTPS or permissions
-        loginInput.focus();
-        loginInput.select();
-        const ok = document.execCommand("copy");
-        showToast(ok ? "Copied" : "Copy failed (tap & hold → Copy)");
-      }
-    });
+    document.getElementById("todayLabel").textContent = friendly(today0) + " (" + todayStr + ")";
+	document.getElementById("tomorrowLabel").textContent = friendly(tomorrow0) + " (" + tomorrowStr + ")";
+	document.getElementById("satLabel").textContent = friendly(sat) + " (" + satStr + ")";
+	document.getElementById("sunLabel").textContent = friendly(sun) + " (" + sunStr + ")";
 
     // =======================
     // RENDER
@@ -180,22 +171,37 @@
           const linkset = document.createElement("span");
           linkset.className = "linkset";
 
-          const aSat = document.createElement("a");
-          aSat.href = safeUrlFromTemplate(act.bookingUrlTemplate, satStr);
-          aSat.textContent = "Saturday";
-          aSat.rel = "noreferrer";
+const aToday = document.createElement("a");
+aToday.href = safeUrlFromTemplate(act.bookingUrlTemplate, todayStr);
+aToday.textContent = "Today";
+aToday.rel = "noreferrer";
 
-          const aSun = document.createElement("a");
-          aSun.href = safeUrlFromTemplate(act.bookingUrlTemplate, sunStr);
-          aSun.textContent = "Sunday";
-          aSun.rel = "noreferrer";
+const aTomorrow = document.createElement("a");
+aTomorrow.href = safeUrlFromTemplate(act.bookingUrlTemplate, tomorrowStr);
+aTomorrow.textContent = "Tomorrow";
+aTomorrow.rel = "noreferrer";
+
+const aSat = document.createElement("a");
+aSat.href = safeUrlFromTemplate(act.bookingUrlTemplate, satStr);
+aSat.textContent = "Saturday";
+aSat.rel = "noreferrer";
+
+const aSun = document.createElement("a");
+aSun.href = safeUrlFromTemplate(act.bookingUrlTemplate, sunStr);
+aSun.textContent = "Sunday";
+aSun.rel = "noreferrer";
+
 
           const chip = document.createElement("span");
           chip.className = "chip";
-          chip.textContent = satStr + " / " + sunStr;
+          chip.textContent = todayStr + " / " + tomorrowStr + " / " + satStr + " / " + sunStr;
 
-          linkset.appendChild(aSat);
-          linkset.appendChild(aSun);
+
+linkset.appendChild(aToday);
+linkset.appendChild(aTomorrow);
+linkset.appendChild(aSat);
+linkset.appendChild(aSun);
+
 
           li.appendChild(name);
           li.appendChild(linkset);
